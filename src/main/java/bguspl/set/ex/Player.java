@@ -1,5 +1,9 @@
 package bguspl.set.ex;
 
+import java.util.Iterator;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+
 import bguspl.set.Env;
 
 /**
@@ -50,6 +54,11 @@ public class Player implements Runnable {
      */
     private int score;
 
+    public BlockingQueue<Integer> tokens;
+    private final Dealer dealer;
+    public Object keyPlayer;
+
+
     /**
      * The class constructor.
      *
@@ -64,6 +73,8 @@ public class Player implements Runnable {
         this.table = table;
         this.id = id;
         this.human = human;
+        this.dealer = dealer;
+        tokens = new LinkedBlockingQueue<Integer>(3);
     }
 
     /**
@@ -77,6 +88,27 @@ public class Player implements Runnable {
 
         while (!terminate) {
             // TODO implement main player loop
+            while(tokens.size() < 3 && !terminate) {
+                try {
+                    synchronized (this) { wait(); }
+                } catch (InterruptedException ignored) {}
+            }
+            dealer.playerSetQueue.add(this); // add or put?
+            // ????
+            try { 
+                synchronized(dealer.keyDealer) {
+                    dealer.keyDealer.notify();
+                }
+            
+                // need to create a player key and when all players need to wait call sunchronize(playerKey) and when we want to awake only the dealer - synconize(dealerKey){dealer.dealerkey.notify()}
+                // need to wait for the dealer
+                // the dealer needs to check the set-that means we need to add a field in the dealer class that finds out who the player who claims the set is, or queue with the 3 cards
+                synchronized (this.keyPlayer) { wait(); }
+            } catch (InterruptedException ignored) {}
+            
+            tokens.clear();
+
+            
         }
         if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
@@ -92,9 +124,12 @@ public class Player implements Runnable {
             env.logger.info("thread " + Thread.currentThread().getName() + " starting.");
             while (!terminate) {
                 // TODO implement player key press simulator
+                int rand = (int)(Math.random()*12) + 1;
+                keyPressed(rand);
                 try {
-                    synchronized (this) { wait(); }
+                    synchronized (this) { wait(5000); }
                 } catch (InterruptedException ignored) {}
+                //tokens.clear();
             }
             env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
         }, "computer-" + id);
@@ -105,6 +140,13 @@ public class Player implements Runnable {
      * Called when the game should be terminated.
      */
     public void terminate() {
+        terminate = true;
+        Thread.currentThread().interrupt();
+
+        // interrupt??
+
+        // what should we do??
+        
         // TODO implement
     }
 
@@ -115,6 +157,28 @@ public class Player implements Runnable {
      */
     public void keyPressed(int slot) {
         // TODO implement
+  
+        try { 
+            if(tokens.contains(slot)) {
+                // remove from the queue 
+            }
+            //}
+            tokens.put(slot);
+            table.placeToken(id, slot);
+            notifyAll();  // ??
+            // if(tokens.size() == 3) {
+            //     notifyAll(); // notify the dealer that the player has 3 tokens
+            //     tokens.clear();
+                //wait(); // ???
+                // remove token in the dealer class
+            //}
+
+        }
+        catch (InterruptedException e) { }
+
+        
+        
+        
     }
 
     /**
@@ -125,6 +189,11 @@ public class Player implements Runnable {
      */
     public void point() {
         // TODO implement
+        score++;
+        env.ui.setFreeze(id, 1000 );
+        try{
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {}
 
         int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
@@ -134,6 +203,10 @@ public class Player implements Runnable {
      * Penalize a player and perform other related actions.
      */
     public void penalty() {
+        env.ui.setFreeze(id, 3000 );
+        try{
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {}
         // TODO implement
     }
 
