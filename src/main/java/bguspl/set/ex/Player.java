@@ -1,5 +1,9 @@
 package bguspl.set.ex;
 
+import java.util.Iterator;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+
 import bguspl.set.Env;
 
 /**
@@ -50,6 +54,14 @@ public class Player implements Runnable {
      */
     private int score;
 
+    private BlockingQueue<Integer> pressedKeys;
+    public BlockingQueue<Integer> tokens;
+
+    private final Dealer dealer;
+    public Object keyPlayer;
+    public long freezeTime;
+
+
     /**
      * The class constructor.
      *
@@ -64,6 +76,11 @@ public class Player implements Runnable {
         this.table = table;
         this.id = id;
         this.human = human;
+        this.dealer = dealer;
+        tokens = new LinkedBlockingQueue<Integer>(3);
+        pressedKeys = new LinkedBlockingQueue<Integer>();
+        keyPlayer = new Object();
+        freezeTime = 0;
     }
 
     /**
@@ -77,10 +94,42 @@ public class Player implements Runnable {
 
         while (!terminate) {
             // TODO implement main player loop
+            while(!pressedKeys.isEmpty()) {
+                int pressedKey = pressedKeys.poll();
+                if(tokens.contains(pressedKey)) {
+                    tokens.remove(pressedKey);
+                    table.removeToken(id, pressedKey);
+                } else {
+                    env.logger.info("slot: " + pressedKey + " entered to tokens list");
+                    boolean added = tokens.offer(pressedKey);
+                   if (added){
+                        table.placeToken(id, pressedKey);
+                   }
+                     if(tokens.size() == 3 && added) {
+                         dealer.playerSetQueue.offer(this);
+                         synchronized(dealer.keyDealer) {
+                             dealer.keyDealer.notify();
+                         }
+                    //      synchronized (this) {
+                    //         try {
+                    //             wait(); 
+                    //         }  catch (InterruptedException e) {
+                            
+                    //     }
+                    //  }
+                }
+
+            }
+
+            
+
+            
         }
+    }
         if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
-    }
+   
+}
 
     /**
      * Creates an additional thread for an AI (computer) player. The main loop of this thread repeatedly generates
@@ -92,9 +141,12 @@ public class Player implements Runnable {
             env.logger.info("thread " + Thread.currentThread().getName() + " starting.");
             while (!terminate) {
                 // TODO implement player key press simulator
+                int rand = (int)(Math.random()*12) + 1;
+                keyPressed(rand);
                 try {
-                    synchronized (this) { wait(); }
+                    synchronized (this) { wait(5000); }
                 } catch (InterruptedException ignored) {}
+                //tokens.clear();
             }
             env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
         }, "computer-" + id);
@@ -105,6 +157,13 @@ public class Player implements Runnable {
      * Called when the game should be terminated.
      */
     public void terminate() {
+        terminate = true;
+        Thread.currentThread().interrupt();
+
+        // interrupt??
+
+        // what should we do??
+        
         // TODO implement
     }
 
@@ -115,7 +174,23 @@ public class Player implements Runnable {
      */
     public void keyPressed(int slot) {
         // TODO implement
-    }
+        pressedKeys.offer(slot);
+        
+        
+            //notifyAll();  // ??
+            // if(tokens.size() == 3) {
+            //     notifyAll(); // notify the dealer that the player has 3 tokens
+            //     tokens.clear();
+                //wait(); // ???
+                // remove token in the dealer class
+            //}
+
+        }
+
+
+        
+        
+        
 
     /**
      * Award a point to a player and perform other related actions.
@@ -125,6 +200,13 @@ public class Player implements Runnable {
      */
     public void point() {
         // TODO implement
+        
+        freezeTime = System.currentTimeMillis() + env.config.pointFreezeMillis;
+        // while(System.currentTimeMillis() < freezeTime - 1000) {
+        //     env.ui.setFreeze(id, freezeTime - System.currentTimeMillis());
+        // }
+        // env.ui.setFreeze(id, 0);
+
 
         int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
@@ -134,6 +216,12 @@ public class Player implements Runnable {
      * Penalize a player and perform other related actions.
      */
     public void penalty() {
+        //env.ui.setFreeze(id, 3000 );
+        freezeTime = 1000 + System.currentTimeMillis() + env.config.penaltyFreezeMillis;
+        // while(System.currentTimeMillis() < freezeTime - 1000) {
+        //     env.ui.setFreeze(id, freezeTime - System.currentTimeMillis());
+        // }
+        // env.ui.setFreeze(id, 0);
         // TODO implement
     }
 
