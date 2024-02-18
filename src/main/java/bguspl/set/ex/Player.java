@@ -54,9 +54,12 @@ public class Player implements Runnable {
      */
     private int score;
 
+    private BlockingQueue<Integer> pressedKeys;
     public BlockingQueue<Integer> tokens;
+
     private final Dealer dealer;
     public Object keyPlayer;
+    public long freezeTime;
 
 
     /**
@@ -75,6 +78,9 @@ public class Player implements Runnable {
         this.human = human;
         this.dealer = dealer;
         tokens = new LinkedBlockingQueue<Integer>(3);
+        pressedKeys = new LinkedBlockingQueue<Integer>();
+        keyPlayer = new Object();
+        freezeTime = 0;
     }
 
     /**
@@ -88,31 +94,42 @@ public class Player implements Runnable {
 
         while (!terminate) {
             // TODO implement main player loop
-            while(tokens.size() < 3 && !terminate) {
-                try {
-                    synchronized (this) { wait(); }
-                } catch (InterruptedException ignored) {}
-            }
-            dealer.playerSetQueue.add(this); // add or put?
-            // ????
-            try { 
-                synchronized(dealer.keyDealer) {
-                    dealer.keyDealer.notify();
+            while(!pressedKeys.isEmpty()) {
+                int pressedKey = pressedKeys.poll();
+                if(tokens.contains(pressedKey)) {
+                    tokens.remove(pressedKey);
+                    table.removeToken(id, pressedKey);
+                } else {
+                    env.logger.info("slot: " + pressedKey + " entered to tokens list");
+                    boolean added = tokens.offer(pressedKey);
+                   if (added){
+                        table.placeToken(id, pressedKey);
+                   }
+                     if(tokens.size() == 3 && added) {
+                         dealer.playerSetQueue.offer(this);
+                         synchronized(dealer.keyDealer) {
+                             dealer.keyDealer.notify();
+                         }
+                    //      synchronized (this) {
+                    //         try {
+                    //             wait(); 
+                    //         }  catch (InterruptedException e) {
+                            
+                    //     }
+                    //  }
                 }
+
+            }
+
             
-                // need to create a player key and when all players need to wait call sunchronize(playerKey) and when we want to awake only the dealer - synconize(dealerKey){dealer.dealerkey.notify()}
-                // need to wait for the dealer
-                // the dealer needs to check the set-that means we need to add a field in the dealer class that finds out who the player who claims the set is, or queue with the 3 cards
-                synchronized (this.keyPlayer) { wait(); }
-            } catch (InterruptedException ignored) {}
-            
-            tokens.clear();
 
             
         }
+    }
         if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
-    }
+   
+}
 
     /**
      * Creates an additional thread for an AI (computer) player. The main loop of this thread repeatedly generates
@@ -157,15 +174,10 @@ public class Player implements Runnable {
      */
     public void keyPressed(int slot) {
         // TODO implement
-  
-        try { 
-            if(tokens.contains(slot)) {
-                // remove from the queue 
-            }
-            //}
-            tokens.put(slot);
-            table.placeToken(id, slot);
-            notifyAll();  // ??
+        pressedKeys.offer(slot);
+        
+        
+            //notifyAll();  // ??
             // if(tokens.size() == 3) {
             //     notifyAll(); // notify the dealer that the player has 3 tokens
             //     tokens.clear();
@@ -174,12 +186,11 @@ public class Player implements Runnable {
             //}
 
         }
-        catch (InterruptedException e) { }
+
 
         
         
         
-    }
 
     /**
      * Award a point to a player and perform other related actions.
@@ -189,11 +200,13 @@ public class Player implements Runnable {
      */
     public void point() {
         // TODO implement
-        score++;
-        env.ui.setFreeze(id, 1000 );
-        try{
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {}
+        
+        freezeTime = System.currentTimeMillis() + env.config.pointFreezeMillis;
+        // while(System.currentTimeMillis() < freezeTime - 1000) {
+        //     env.ui.setFreeze(id, freezeTime - System.currentTimeMillis());
+        // }
+        // env.ui.setFreeze(id, 0);
+
 
         int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
@@ -203,10 +216,12 @@ public class Player implements Runnable {
      * Penalize a player and perform other related actions.
      */
     public void penalty() {
-        env.ui.setFreeze(id, 3000 );
-        try{
-            Thread.sleep(3000);
-        } catch (InterruptedException e) {}
+        //env.ui.setFreeze(id, 3000 );
+        freezeTime = 1000 + System.currentTimeMillis() + env.config.penaltyFreezeMillis;
+        // while(System.currentTimeMillis() < freezeTime - 1000) {
+        //     env.ui.setFreeze(id, freezeTime - System.currentTimeMillis());
+        // }
+        // env.ui.setFreeze(id, 0);
         // TODO implement
     }
 
