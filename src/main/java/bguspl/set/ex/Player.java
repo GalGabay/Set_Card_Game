@@ -90,6 +90,7 @@ public class Player implements Runnable {
     public void run() {
         playerThread = Thread.currentThread();
         env.logger.info("thread " + Thread.currentThread().getName() + " starting.");
+        env.logger.info("player " + id + " is " + (human ? "human" : "computer") + ".");
         if (!human) createArtificialIntelligence();
 
         while (!terminate) {
@@ -110,26 +111,26 @@ public class Player implements Runnable {
                          synchronized(dealer.keyDealer) {
                              dealer.keyDealer.notify();
                          }
-                    //      synchronized (this) {
-                    //         try {
-                    //             wait(); 
-                    //         }  catch (InterruptedException e) {
-                            
-                    //     }
-                    //  }
+                        //  synchronized (keyPlayer) {
+                        //     try {
+                        //         keyPlayer.wait(); 
+                        //     }  catch (InterruptedException e) {}
+                        // }
+                            // try {
+                            //     Thread.sleep(3000);
+                            // } catch (InterruptedException e) {
+                            //   
+                     }
                 }
 
-            }
-
-            
-
-            
-        }
+            }  
+        
     }
         if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
         env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
-   
 }
+   
+
 
     /**
      * Creates an additional thread for an AI (computer) player. The main loop of this thread repeatedly generates
@@ -137,14 +138,15 @@ public class Player implements Runnable {
      */
     private void createArtificialIntelligence() {
         // note: this is a very, very smart AI (!)
+       
         aiThread = new Thread(() -> {
             env.logger.info("thread " + Thread.currentThread().getName() + " starting.");
             while (!terminate) {
                 // TODO implement player key press simulator
-                int rand = (int)(Math.random()*12) + 1;
+                int rand = (int)(Math.random()*12);
                 keyPressed(rand);
                 try {
-                    synchronized (this) { wait(5000); }
+                    synchronized (this) { wait(5000); } // how long should the AI wait between key presses?
                 } catch (InterruptedException ignored) {}
                 //tokens.clear();
             }
@@ -206,7 +208,12 @@ public class Player implements Runnable {
         //     env.ui.setFreeze(id, freezeTime - System.currentTimeMillis());
         // }
         // env.ui.setFreeze(id, 0);
-
+        // synchronized(keyPlayer) {
+        //     try {
+        //         keyPlayer.wait(freezeTime);
+        //     } catch (InterruptedException e) {
+        //     }
+        // }
 
         int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
@@ -218,6 +225,12 @@ public class Player implements Runnable {
     public void penalty() {
         //env.ui.setFreeze(id, 3000 );
         freezeTime = 1000 + System.currentTimeMillis() + env.config.penaltyFreezeMillis;
+        // synchronized(keyPlayer) {
+        //     try {
+        //         keyPlayer.wait(freezeTime);
+        //     } catch (InterruptedException e) {
+        //     }
+        // }
         // while(System.currentTimeMillis() < freezeTime - 1000) {
         //     env.ui.setFreeze(id, freezeTime - System.currentTimeMillis());
         // }
