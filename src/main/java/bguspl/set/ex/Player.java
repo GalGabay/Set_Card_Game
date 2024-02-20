@@ -60,6 +60,7 @@ public class Player implements Runnable {
     private final Dealer dealer;
     public Object keyPlayer;
     public long freezeTime;
+    public boolean frozen;
 
 
     /**
@@ -81,6 +82,7 @@ public class Player implements Runnable {
         pressedKeys = new LinkedBlockingQueue<Integer>();
         keyPlayer = new Object();
         freezeTime = 0;
+        frozen = false;
     }
 
     /**
@@ -90,11 +92,18 @@ public class Player implements Runnable {
     public void run() {
         playerThread = Thread.currentThread();
         env.logger.info("thread " + Thread.currentThread().getName() + " starting.");
-        env.logger.info("player " + id + " is " + (human ? "human" : "computer") + ".");
         if (!human) createArtificialIntelligence();
 
         while (!terminate) {
             // TODO implement main player loop
+            synchronized(keyPlayer) {
+                while(frozen) {
+                    freeze(freezeTime-System.currentTimeMillis());
+                    env.logger.info("player is out of freeze");
+                }
+            }
+
+
             while(!pressedKeys.isEmpty()) {
                 int pressedKey = pressedKeys.poll();
                 if(tokens.contains(pressedKey)) {
@@ -176,8 +185,10 @@ public class Player implements Runnable {
      */
     public void keyPressed(int slot) {
         // TODO implement
-        pressedKeys.offer(slot);
-        
+        if(!frozen) {
+            pressedKeys.offer(slot);
+            env.logger.info("slot: " + slot + " entered to pressedKeys list");
+        }
         
             //notifyAll();  // ??
             // if(tokens.size() == 3) {
@@ -203,7 +214,7 @@ public class Player implements Runnable {
     public void point() {
         // TODO implement
         
-        freezeTime = System.currentTimeMillis() + env.config.pointFreezeMillis;
+        freezeTime = 100 + System.currentTimeMillis() + env.config.pointFreezeMillis;
         // while(System.currentTimeMillis() < freezeTime - 1000) {
         //     env.ui.setFreeze(id, freezeTime - System.currentTimeMillis());
         // }
@@ -224,7 +235,7 @@ public class Player implements Runnable {
      */
     public void penalty() {
         //env.ui.setFreeze(id, 3000 );
-        freezeTime = 1000 + System.currentTimeMillis() + env.config.penaltyFreezeMillis;
+        freezeTime = 100 + System.currentTimeMillis() + env.config.penaltyFreezeMillis;
         // synchronized(keyPlayer) {
         //     try {
         //         keyPlayer.wait(freezeTime);
@@ -240,5 +251,22 @@ public class Player implements Runnable {
 
     public int score() {
         return score;
+    }
+
+    public void freeze(long freezeTime) {
+        env.logger.info("entered freeze");
+        env.logger.info( "freezeTime is: " + freezeTime);
+        // synchronized(dealer.keyDealer) {
+        //     dealer.keyDealer.notify();
+        // }
+        try {
+            Thread.sleep(freezeTime); // Sleep for freezeTime milliseconds
+        } catch (InterruptedException e) {
+        }
+        
+        synchronized (keyPlayer) {
+            frozen = false;
+            keyPlayer.notify(); // Notify the player thread to resume
+        }
     }
 }

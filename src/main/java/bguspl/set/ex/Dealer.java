@@ -68,6 +68,7 @@ public class Dealer implements Runnable {
 
         while (!shouldFinish()) {
             placeCardsOnTable();
+            //updateTimerDisplay(true);
             timerLoop();
             updateTimerDisplay(true); // probably true
             removeAllCardsFromTable();
@@ -134,26 +135,36 @@ public class Dealer implements Runnable {
                 if(env.util.testSet(cards)) {
                     // this is a valid set
                     playerClaimsSet.point();
+                    synchronized(playerClaimsSet.keyPlayer) {
+                        playerClaimsSet.frozen = true;
+                    }
+                    updateFreezeDisplay();
                     for(int i=0; i<3; i++) {
                         int slot = table.cardToSlot[cards[i]];
                         table.removeCard(slot);
                         table.removeToken(playerClaimsSet.id, slot);
                     }
-                    updateTimerDisplay(true);
+                    
+                    //updateTimerDisplay(true);
                 } else {
                     // this is not a valid sets
-                        try {
-                            playerClaimsSet.tokens.put(table.cardToSlot[cards[0]]);
-                            playerClaimsSet.tokens.put(table.cardToSlot[cards[1]]);
-                            playerClaimsSet.tokens.put(table.cardToSlot[cards[2]]);
-                        } catch (InterruptedException e) {}
+                    playerClaimsSet.penalty();
+                    synchronized(playerClaimsSet.keyPlayer) {
+                        playerClaimsSet.frozen = true;
+                    }
+                    updateFreezeDisplay();
+                    try {
+                        playerClaimsSet.tokens.put(table.cardToSlot[cards[0]]);
+                        playerClaimsSet.tokens.put(table.cardToSlot[cards[1]]);
+                        playerClaimsSet.tokens.put(table.cardToSlot[cards[2]]);
+                    } catch (InterruptedException e) {}
     
                         // playerClaimsSet.keyPressed(table.cardToSlot[cards[0]]);
                         // playerClaimsSet.keyPressed(table.cardToSlot[cards[1]]);
                         // playerClaimsSet.keyPressed(table.cardToSlot[cards[2]]);
 
                 
-                    playerClaimsSet.penalty();
+                    
                 
             }
         }
@@ -185,6 +196,7 @@ public class Dealer implements Runnable {
             terminate = true;
             }
         }
+        table.hints(); // DELETE
 
     }
 
@@ -202,8 +214,14 @@ public class Dealer implements Runnable {
         synchronized(keyDealer) {
             //env.logger.info("get into sleepUntilWokenOrTimeout");
             try {
+                if(reshuffleTime - System.currentTimeMillis() < env.config.turnTimeoutWarningMillis) {
+                    env.logger.info("dealer wakes up each 100 milisec");
+                    keyDealer.wait(100);
+                } else {
                 //keyDealer.wait(reshuffleTime - System.currentTimeMillis());
-                keyDealer.wait(1000);
+                    env.logger.info("dealer wakes up each 1000 milisec");
+                    keyDealer.wait(1000);
+                }
             } catch (InterruptedException ignored) {}
         }
 
@@ -228,9 +246,8 @@ public class Dealer implements Runnable {
         } else {
             env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), false);
         }
-        
-         for(int i=0; i<players.length; i++) {
-             env.ui.setFreeze(i, players[i].freezeTime - System.currentTimeMillis()+1000);
+        updateFreezeDisplay();
+         
             // if(players[i].freezeTime - System.currentTimeMillis()+1000 <= 0) {
             //     synchronized(players[i].keyPlayer) {
             //         players[i].keyPlayer.notify();
@@ -244,8 +261,18 @@ public class Dealer implements Runnable {
         //         catch (InterruptedException e) {}
         //     }
             
-         }
+         
     }
+
+private void updateFreezeDisplay() {
+    for(int i=0; i<players.length; i++) {
+        //if(players[i].freezeTime - System.currentTimeMillis() + 100 > 0) {
+        env.ui.setFreeze(i, players[i].freezeTime - System.currentTimeMillis()+100);
+        //}
+        
+    }
+}
+
 
     /**
      * Returns all the cards from the table to the deck.
