@@ -65,12 +65,10 @@ public class Dealer implements Runnable {
             new ThreadLogger(players[i], name, env.logger).startWithLog();
         }
         // what about "join" to the threads of the players?
-
         while (!shouldFinish()) {
             placeCardsOnTable();
-            //updateTimerDisplay(true);
             timerLoop();
-            updateTimerDisplay(true); // probably true
+            updateTimerDisplay(false); // probably true
             removeAllCardsFromTable();
         }
         announceWinners();
@@ -90,6 +88,7 @@ public class Dealer implements Runnable {
             removeCardsFromTable();
             placeCardsOnTable();
         }
+        reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis;
     }
 
     /**
@@ -118,57 +117,70 @@ public class Dealer implements Runnable {
     private void removeCardsFromTable() {
         synchronized(table) { 
             // TODO implement
-            Player playerClaimsSet = playerSetQueue.poll();
-            if(playerClaimsSet == null) {
-                if(reshuffleTime - System.currentTimeMillis() > 0) {
-
-                }
-            } else {
-                env.logger.info("get into removeCardsFromTable-player claims set");
-                // player claims set and check if the set is valid and remove the 3 cards
-                int[] cards = new int[3];
-                for(int i=0; i<3; i++) {
-                    int slot = playerClaimsSet.tokens.poll();
-                    env.logger.info("slot: " + slot);
-                    cards[i] = table.slotToCard[slot];
-                }
-                if(env.util.testSet(cards)) {
-                    // this is a valid set
-                    playerClaimsSet.point();
-                    synchronized(playerClaimsSet.keyPlayer) {
-                        playerClaimsSet.frozen = true;
-                    }
-                    updateFreezeDisplay();
-                    for(int i=0; i<3; i++) {
-                        int slot = table.cardToSlot[cards[i]];
-                        table.removeCard(slot);
-                        table.removeToken(playerClaimsSet.id, slot);
-                    }
-                    
-                    //updateTimerDisplay(true);
-                } else {
-                    // this is not a valid sets
-                    playerClaimsSet.penalty();
-                    synchronized(playerClaimsSet.keyPlayer) {
-                        playerClaimsSet.frozen = true;
-                    }
-                    updateFreezeDisplay();
-                    try {
-                        playerClaimsSet.tokens.put(table.cardToSlot[cards[0]]);
-                        playerClaimsSet.tokens.put(table.cardToSlot[cards[1]]);
-                        playerClaimsSet.tokens.put(table.cardToSlot[cards[2]]);
-                    } catch (InterruptedException e) {}
-    
-                        // playerClaimsSet.keyPressed(table.cardToSlot[cards[0]]);
-                        // playerClaimsSet.keyPressed(table.cardToSlot[cards[1]]);
-                        // playerClaimsSet.keyPressed(table.cardToSlot[cards[2]]);
-
-                
-                    
-                
+            Player playerClaimsSet;
+            synchronized(keyDealer) {
+                playerClaimsSet = playerSetQueue.poll();
             }
+            if(!(playerClaimsSet == null)) {
+                synchronized(playerClaimsSet.keyPlayer) {
+                    env.logger.info("get into removeCardsFromTable-player claims set - player: " + playerClaimsSet.id);
+                    // player claims set and check if the set is valid and remove the 3 cards
+                    int[] cards = new int[3];
+                    if(playerClaimsSet.tokensSize() == 3) {
+                        for(int i=0; i<3; i++) {
+                            int slot;
+                            slot = playerClaimsSet.tokens.poll();
+                            env.logger.info("slot: " + slot);
+                            cards[i] = table.slotToCard[slot];
+                        }
+                    }
+                    env.logger.info("dealer is working");
+                    if(env.util.testSet(cards)) {
+                        // this is a valid set
+                        playerClaimsSet.point();
+                        updateFreezeDisplay();
+                        synchronized(playerClaimsSet.keyPlayer) {
+                            playerClaimsSet.frozen = true;
+                        }
+                        
+                        for(int i=0; i<3; i++) {
+                            int slot = table.cardToSlot[cards[i]];
+                            table.removeCard(slot);
+                            table.removeToken(playerClaimsSet.id, slot);
+                        }
+                        placeCardsOnTable(); // added this line
+                        updateTimerDisplay(true);
+                    } else {
+                        // this is not a valid sets
+                        playerClaimsSet.penalty();
+                        updateFreezeDisplay();
+                        synchronized(playerClaimsSet.keyPlayer) {
+                            playerClaimsSet.frozen = true;
+                        }
+                    
+                        try {
+                            synchronized(playerClaimsSet.keyPlayer) {
+                                playerClaimsSet.tokens.put(table.cardToSlot[cards[0]]);
+                                playerClaimsSet.tokens.put(table.cardToSlot[cards[1]]);
+                                playerClaimsSet.tokens.put(table.cardToSlot[cards[2]]);
+                            }
+                        } catch (InterruptedException e) {}
+        
+                            // playerClaimsSet.keyPressed(table.cardToSlot[cards[0]]);
+                            // playerClaimsSet.keyPressed(table.cardToSlot[cards[1]]);
+                            // playerClaimsSet.keyPressed(table.cardToSlot[cards[2]]);
+
+                    
+                        
+                    
+                }
+                synchronized(playerClaimsSet.keyPlayer) {
+                    playerClaimsSet.keyPlayer.notifyAll();
+                }
         }
     }
+}
+        
 }
 
     /**
@@ -220,10 +232,11 @@ public class Dealer implements Runnable {
                 } else {
                 //keyDealer.wait(reshuffleTime - System.currentTimeMillis());
                     env.logger.info("dealer wakes up each 1000 milisec");
-                    keyDealer.wait(1000);
+                    keyDealer.wait(100);
                 }
             } catch (InterruptedException ignored) {}
         }
+        env.logger.info("Dealer is awake");
 
     }
 
@@ -233,13 +246,16 @@ public class Dealer implements Runnable {
     private void updateTimerDisplay(boolean reset) {
         // TODO implement
         if(reset) {
-            env.ui.setCountdown(env.config.turnTimeoutMillis, false);
-            for(Player player : players) {
-                int tokenSize = player.tokens.size();
-                for(int i=0; i<tokenSize; i++) {
-                    table.removeToken(player.id, player.tokens.poll());
-                }
-            }
+            reshuffleTime = env.config.turnTimeoutMillis + System.currentTimeMillis();
+            env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), false);
+
+            // need to change This:
+            // for(Player player : players) {
+            //     int tokenSize = player.tokens.size();
+            //     for(int i=0; i<tokenSize; i++) {
+            //         table.removeToken(player.id, player.tokens.poll());
+            //     }
+            // }
         }
         else if(reshuffleTime - System.currentTimeMillis() < env.config.turnTimeoutWarningMillis) {
             env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), true);
@@ -266,9 +282,9 @@ public class Dealer implements Runnable {
 
 private void updateFreezeDisplay() {
     for(int i=0; i<players.length; i++) {
-        //if(players[i].freezeTime - System.currentTimeMillis() + 100 > 0) {
-        env.ui.setFreeze(i, players[i].freezeTime - System.currentTimeMillis()+100);
-        //}
+        if(!(players[i].freezeTime - System.currentTimeMillis() > 0 & players[i].freezeTime - System.currentTimeMillis() < 1000)) {
+            env.ui.setFreeze(i, players[i].freezeTime - System.currentTimeMillis());
+        }
         
     }
 }
@@ -279,7 +295,20 @@ private void updateFreezeDisplay() {
      */
     private void removeAllCardsFromTable() {
         synchronized(table) {
+            env.logger.info("get into removeAllCardsFromTable");
+            synchronized(keyDealer) {
+                playerSetQueue.clear();
+            }
+           
         // TODO implement
+            for(Player player : players) {
+                synchronized(player.keyPlayer) {
+                    int tokenSize = player.tokens.size();
+                    for(int i=0; i<tokenSize; i++) {
+                        table.removeToken(player.id, player.tokens.poll());
+                    }
+                }
+            }
             for(int i =0; i<table.slotToCard.length; i++) {
                 deck.add(table.slotToCard[i]);
                 table.removeCard(i);
@@ -294,6 +323,7 @@ private void updateFreezeDisplay() {
      */
     private void announceWinners() {
         // TODO implement
+        env.logger.info("get into announceWinners");
         LinkedBlockingQueue<Player> winners = new LinkedBlockingQueue<Player>();
         int winningScore = 0;
         int numOfWinners = 0;

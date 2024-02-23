@@ -106,25 +106,34 @@ public class Player implements Runnable {
 
             while(!pressedKeys.isEmpty()) {
                 int pressedKey = pressedKeys.poll();
-                if(tokens.contains(pressedKey)) {
-                    tokens.remove(pressedKey);
-                    table.removeToken(id, pressedKey);
+                if(tokensContains(pressedKey)) {
+                    tokensRemove(pressedKey);
+                    synchronized(table) {
+                        table.removeToken(id, pressedKey);
+                    }
                 } else {
-                    env.logger.info("slot: " + pressedKey + " entered to tokens list");
-                    boolean added = tokens.offer(pressedKey);
-                   if (added){
+                    env.logger.info("slot: " + pressedKey + " entered to tokens list of player: " + this.id);
+                    boolean added = tokensAdd(pressedKey);
+                    if (added){
+                    synchronized(table) {
                         table.placeToken(id, pressedKey);
-                   }
-                     if(tokens.size() == 3 && added) {
-                         dealer.playerSetQueue.offer(this);
-                         synchronized(dealer.keyDealer) {
-                             dealer.keyDealer.notify();
+                    }
+                    }
+                     if(tokensSize() == 3 && added) {
+                        synchronized(dealer.keyDealer) {
+                            dealer.playerSetQueue.offer(this);
+
+                           //dealer.keyDealer.notify();
                          }
-                        //  synchronized (keyPlayer) {
-                        //     try {
-                        //         keyPlayer.wait(); 
-                        //     }  catch (InterruptedException e) {}
-                        // }
+                         
+                         synchronized (keyPlayer) {
+                            try {
+                                env.logger.info("player + " + id + " is waiting");
+                                keyPlayer.wait(); 
+                                env.logger.info("player + " + id + " is awake");
+                            }  catch (InterruptedException e) {}
+                            
+                         }
                             // try {
                             //     Thread.sleep(3000);
                             // } catch (InterruptedException e) {
@@ -152,11 +161,11 @@ public class Player implements Runnable {
             env.logger.info("thread " + Thread.currentThread().getName() + " starting.");
             while (!terminate) {
                 // TODO implement player key press simulator
-                int rand = (int)(Math.random()*12);
+                int rand = (int)(Math.random()*env.config.tableSize);
                 keyPressed(rand);
-                try {
-                    synchronized (this) { wait(5000); } // how long should the AI wait between key presses?
-                } catch (InterruptedException ignored) {}
+                // try {
+                //     synchronized (this) { wait(800); } // how long should the AI wait between key presses?
+                // } catch (InterruptedException ignored) {}
                 //tokens.clear();
             }
             env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
@@ -214,7 +223,7 @@ public class Player implements Runnable {
     public void point() {
         // TODO implement
         
-        freezeTime = 100 + System.currentTimeMillis() + env.config.pointFreezeMillis;
+        freezeTime =   100+System.currentTimeMillis() + env.config.pointFreezeMillis;
         // while(System.currentTimeMillis() < freezeTime - 1000) {
         //     env.ui.setFreeze(id, freezeTime - System.currentTimeMillis());
         // }
@@ -260,7 +269,8 @@ public class Player implements Runnable {
         //     dealer.keyDealer.notify();
         // }
         try {
-            Thread.sleep(freezeTime); // Sleep for freezeTime milliseconds
+            if(freezeTime > 0)
+                Thread.sleep(freezeTime); // Sleep for freezeTime milliseconds
         } catch (InterruptedException e) {
         }
         
@@ -269,4 +279,26 @@ public class Player implements Runnable {
             keyPlayer.notify(); // Notify the player thread to resume
         }
     }
+
+    public boolean tokensContains(int pressedKey) {
+        synchronized(keyPlayer) {
+            return tokens.contains(pressedKey);
+        }
+    }
+    public void tokensRemove(int pressedKey) {
+        synchronized(keyPlayer) {
+            tokens.remove(pressedKey);
+        }
+    }
+    public boolean tokensAdd(int pressedKey) {
+        synchronized(keyPlayer) {
+            return tokens.offer(pressedKey);
+        }
+    }
+    public int tokensSize() {
+        synchronized(keyPlayer) {
+            return tokens.size();
+        }
+    }
+
 }
