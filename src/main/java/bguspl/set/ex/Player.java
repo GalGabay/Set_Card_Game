@@ -54,7 +54,7 @@ public class Player implements Runnable {
      */
     private int score;
 
-    private BlockingQueue<Integer> pressedKeys;
+    public BlockingQueue<Integer> pressedKeys;
     public BlockingQueue<Integer> tokens;
 
     private final Dealer dealer;
@@ -99,49 +99,52 @@ public class Player implements Runnable {
             synchronized(keyPlayer) {
                 while(frozen) {
                     freeze(freezeTime-System.currentTimeMillis());
-                    env.logger.info("player is out of freeze");
+                    env.logger.info("MYLOG:player " + id + "is out of freeze");
                 }
             }
 
 
             while(!pressedKeys.isEmpty()) {
                 int pressedKey = pressedKeys.poll();
-                if(tokensContains(pressedKey)) {
-                    tokensRemove(pressedKey);
-                    synchronized(table) {
-                        table.removeToken(id, pressedKey);
-                    }
-                } else {
-                    env.logger.info("slot: " + pressedKey + " entered to tokens list of player: " + this.id);
-                    boolean added = tokensAdd(pressedKey);
-                    if (added){
-                    synchronized(table) {
-                        table.placeToken(id, pressedKey);
-                    }
-                    }
-                     if(tokensSize() == 3 && added) {
-                        synchronized(dealer.keyDealer) {
-                            dealer.playerSetQueue.offer(this);
-
-                           //dealer.keyDealer.notify();
-                         }
-                         
-                         synchronized (keyPlayer) {
-                            try {
-                                env.logger.info("player + " + id + " is waiting");
-                                keyPlayer.wait(); 
-                                env.logger.info("player + " + id + " is awake");
-                            }  catch (InterruptedException e) {}
+                if(table.slotToCard[pressedKey] != null) {
+                    if(tokensContains(pressedKey)) {
+                        tokensRemove(pressedKey);
+                        synchronized(table) {
+                            table.removeToken(id, pressedKey);
+                        }
+                    } else {
+                        env.logger.info("MYLOG: slot: " + pressedKey + " entered to tokens list of player: " + this.id);
+                        boolean added = tokensAdd(pressedKey);
+                        if (added){
+                        synchronized(table) {
+                            if(table.slotToCard[pressedKey] != null)
+                                table.placeToken(id, pressedKey);
+                        }
+                        }
+                        if(tokensSize() == 3 && added) {
+                            synchronized(dealer.keyDealer) {
+                                dealer.playerSetQueue.offer(this);
+                                dealer.keyDealer.notify();
+                                
+                            }
                             
-                         }
-                            // try {
-                            //     Thread.sleep(3000);
-                            // } catch (InterruptedException e) {
-                            //   
-                     }
-                }
+                            synchronized (keyPlayer) {
+                                try {
+                                    env.logger.info("MYLOG:player + " + id + " is waiting");
+                                    keyPlayer.wait(); 
+                                    env.logger.info("MYLOG:player + " + id + " is awake");
+                                }  catch (InterruptedException e) {}
+                                
+                            }
+                                // try {
+                                //     Thread.sleep(3000);
+                                // } catch (InterruptedException e) {
+                                //   
+                        }
+                    }
 
-            }  
+                }  
+        }
         
     }
         if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
@@ -191,13 +194,19 @@ public class Player implements Runnable {
      * This method is called when a key is pressed.
      *
      * @param slot - the slot corresponding to the key pressed.
-     */
+     */ 
     public void keyPressed(int slot) {
         // TODO implement
-        if(!frozen) {
-            pressedKeys.offer(slot);
-            env.logger.info("slot: " + slot + " entered to pressedKeys list");
-        }
+        synchronized(keyPlayer) {
+            if(!frozen) {
+                //synchronized(table) {
+                if(table.slotToCard[slot] != null && pressedKeys.size() < 3) {
+                    pressedKeys.offer(slot);
+                    env.logger.info("MYLOG:slot: " + slot + " entered to pressedKeys list of player " + id);
+                }
+            }
+        //}
+    }
         
             //notifyAll();  // ??
             // if(tokens.size() == 3) {
@@ -206,8 +215,20 @@ public class Player implements Runnable {
                 //wait(); // ???
                 // remove token in the dealer class
             //}
-
         }
+
+
+        // public int pressedKeysSize() {
+        //     synchronized(keyPlayer) {
+        //         return pressedKeys.size();
+        //     }
+        // }
+
+        // public void pressedKeysAdd(int slot) {
+        //     synchronized(keyPlayer) {
+        //         pressedKeys.offer(slot);
+        //     }
+        // }
 
 
         
@@ -223,7 +244,7 @@ public class Player implements Runnable {
     public void point() {
         // TODO implement
         
-        freezeTime =   100+System.currentTimeMillis() + env.config.pointFreezeMillis;
+        freezeTime =   900+System.currentTimeMillis() + env.config.pointFreezeMillis;
         // while(System.currentTimeMillis() < freezeTime - 1000) {
         //     env.ui.setFreeze(id, freezeTime - System.currentTimeMillis());
         // }
@@ -244,7 +265,7 @@ public class Player implements Runnable {
      */
     public void penalty() {
         //env.ui.setFreeze(id, 3000 );
-        freezeTime = 100 + System.currentTimeMillis() + env.config.penaltyFreezeMillis;
+        freezeTime = 900 + System.currentTimeMillis() + env.config.penaltyFreezeMillis;
         // synchronized(keyPlayer) {
         //     try {
         //         keyPlayer.wait(freezeTime);
@@ -263,14 +284,14 @@ public class Player implements Runnable {
     }
 
     public void freeze(long freezeTime) {
-        env.logger.info("entered freeze");
-        env.logger.info( "freezeTime is: " + freezeTime);
+        env.logger.info("MYLOG:player " + id + "entered freeze");
+        env.logger.info( "MYLOG:freezeTime of " + id + "is: " + (freezeTime-900));
         // synchronized(dealer.keyDealer) {
         //     dealer.keyDealer.notify();
         // }
         try {
-            if(freezeTime > 0)
-                Thread.sleep(freezeTime); // Sleep for freezeTime milliseconds
+            if(freezeTime > 900)
+                Thread.sleep(freezeTime-900); // Sleep for freezeTime milliseconds
         } catch (InterruptedException e) {
         }
         
@@ -288,6 +309,7 @@ public class Player implements Runnable {
     public void tokensRemove(int pressedKey) {
         synchronized(keyPlayer) {
             tokens.remove(pressedKey);
+            env.logger.info("MYLOG:slot: " + pressedKey + " removed from tokens list of player: " + this.id);
         }
     }
     public boolean tokensAdd(int pressedKey) {

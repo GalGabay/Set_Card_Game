@@ -68,7 +68,8 @@ public class Dealer implements Runnable {
         while (!shouldFinish()) {
             placeCardsOnTable();
             timerLoop();
-            updateTimerDisplay(false); // probably true
+            updateTimerDisplay(true);
+             // probably true
             removeAllCardsFromTable();
         }
         announceWinners();
@@ -80,7 +81,7 @@ public class Dealer implements Runnable {
      * The inner loop of the dealer thread that runs as long as the countdown did not time out.
      */
     private void timerLoop() {
-        reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis;
+        reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis + 900;
         while (!terminate && System.currentTimeMillis() < reshuffleTime) {
             //env.ui.setCountdown(reshuffleTime-System.currentTimeMillis(), false);
             sleepUntilWokenOrTimeout();
@@ -88,7 +89,13 @@ public class Dealer implements Runnable {
             removeCardsFromTable();
             placeCardsOnTable();
         }
-        reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis;
+        reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis + 900;
+        // for(Player player : players) {
+        //     synchronized(player.keyPlayer) {
+        //         player.keyPlayer.notifyAll();
+                
+        //     }
+        // }
     }
 
     /**
@@ -96,6 +103,7 @@ public class Dealer implements Runnable {
      */
     public void terminate() {
         // TODO implements
+        terminate = true;
         for(int i = players.length-1; i>=0; i--) {
             players[i].terminate();
         }   
@@ -121,63 +129,68 @@ public class Dealer implements Runnable {
             synchronized(keyDealer) {
                 playerClaimsSet = playerSetQueue.poll();
             }
-            if(!(playerClaimsSet == null)) {
+            
+            if(!(playerClaimsSet == null)) { 
                 synchronized(playerClaimsSet.keyPlayer) {
-                    env.logger.info("get into removeCardsFromTable-player claims set - player: " + playerClaimsSet.id);
-                    // player claims set and check if the set is valid and remove the 3 cards
-                    int[] cards = new int[3];
-                    if(playerClaimsSet.tokensSize() == 3) {
-                        for(int i=0; i<3; i++) {
-                            int slot;
-                            slot = playerClaimsSet.tokens.poll();
-                            env.logger.info("slot: " + slot);
-                            cards[i] = table.slotToCard[slot];
-                        }
-                    }
-                    env.logger.info("dealer is working");
-                    if(env.util.testSet(cards)) {
-                        // this is a valid set
-                        playerClaimsSet.point();
-                        updateFreezeDisplay();
-                        synchronized(playerClaimsSet.keyPlayer) {
-                            playerClaimsSet.frozen = true;
-                        }
-                        
-                        for(int i=0; i<3; i++) {
-                            int slot = table.cardToSlot[cards[i]];
-                            table.removeCard(slot);
-                            table.removeToken(playerClaimsSet.id, slot);
-                        }
-                        placeCardsOnTable(); // added this line
-                        updateTimerDisplay(true);
-                    } else {
-                        // this is not a valid sets
-                        playerClaimsSet.penalty();
-                        updateFreezeDisplay();
-                        synchronized(playerClaimsSet.keyPlayer) {
-                            playerClaimsSet.frozen = true;
-                        }
-                    
-                        try {
-                            synchronized(playerClaimsSet.keyPlayer) {
-                                playerClaimsSet.tokens.put(table.cardToSlot[cards[0]]);
-                                playerClaimsSet.tokens.put(table.cardToSlot[cards[1]]);
-                                playerClaimsSet.tokens.put(table.cardToSlot[cards[2]]);
+                    if(playerClaimsSet.tokensSize() == 3) { 
+                        env.logger.info("MYLOG:dealer is awake and checking set of player " + playerClaimsSet.id);
+                        // player claims set and check if the set is valid and remove the 3 cards
+                        int[] cards = new int[3];
+                        if(playerClaimsSet.tokensSize() == 3) {
+                            for(int i=0; i<3; i++) {
+                                int slot;
+                                slot = playerClaimsSet.tokens.poll();
+                                env.logger.info("MYLOG: slot: " + slot + " of player " + playerClaimsSet.id);
+                                cards[i] = table.slotToCard[slot];
                             }
-                        } catch (InterruptedException e) {}
-        
-                            // playerClaimsSet.keyPressed(table.cardToSlot[cards[0]]);
-                            // playerClaimsSet.keyPressed(table.cardToSlot[cards[1]]);
-                            // playerClaimsSet.keyPressed(table.cardToSlot[cards[2]]);
+                        }
 
-                    
+                        if(env.util.testSet(cards)) {
+                            // this is a valid set
+                            playerClaimsSet.point();
+                            updateFreezeDisplay();
+                            synchronized(playerClaimsSet.keyPlayer) {
+                                playerClaimsSet.frozen = true;
+                            }
+                            removeTokensFromSet(playerClaimsSet, cards);
+                            // for(int i=0; i<3; i++) {
+                            //     int slot = table.cardToSlot[cards[i]];
+                            //     table.removeCard(slot);
+                            //     table.removeToken(playerClaimsSet.id, slot);
+                            // }
+                            //placeCardsOnTable(); // added this line
+                           // updateTimerDisplay(true);
+                        } else {
+                            // this is not a valid sets
+                            playerClaimsSet.penalty();
+                            updateFreezeDisplay();
+                            synchronized(playerClaimsSet.keyPlayer) {
+                                playerClaimsSet.frozen = true;
+                            }
                         
-                    
-                }
-                synchronized(playerClaimsSet.keyPlayer) {
-                    playerClaimsSet.keyPlayer.notifyAll();
-                }
+                            try {
+                                synchronized(playerClaimsSet.keyPlayer) {
+                                    playerClaimsSet.tokens.put(table.cardToSlot[cards[0]]);
+                                    playerClaimsSet.tokens.put(table.cardToSlot[cards[1]]);
+                                    playerClaimsSet.tokens.put(table.cardToSlot[cards[2]]);
+                                }
+                            } catch (InterruptedException e) {}
+            
+                                // playerClaimsSet.keyPressed(table.cardToSlot[cards[0]]);
+                                // playerClaimsSet.keyPressed(table.cardToSlot[cards[1]]);
+                                // playerClaimsSet.keyPressed(table.cardToSlot[cards[2]]);
+
+                        
+                            
+                        
+                    }
+               // }
+                    synchronized(playerClaimsSet.keyPlayer) {
+                        playerClaimsSet.keyPlayer.notifyAll();
+                    }
+            
         }
+    }
     }
 }
         
@@ -191,22 +204,26 @@ public class Dealer implements Runnable {
         synchronized(table) {
             Collections.shuffle(deck);
             int countNulls = 0;
+            int cardsToPlace = 0;
             for(int i =0; i<table.slotToCard.length; i++) {
                 if(table.slotToCard[i] == null) {
                     countNulls++;
                 }
             }
-
-            if(deck.size() >= countNulls) {
-                for(int i =0; i<table.slotToCard.length; i++) {
-                    if(table.slotToCard[i] == null) {
-                        int card = deck.remove(0);
-                        table.placeCard(card, i);    
-                    }
-                }   
+            if(countNulls < deck.size()) {
+                cardsToPlace = countNulls;
             } else {
-            terminate = true;
+                cardsToPlace = deck.size();
             }
+
+            for(int i =0; i<table.slotToCard.length; i++) {
+                if(table.slotToCard[i] == null && cardsToPlace > 0) {
+                    cardsToPlace--;
+                    int card = deck.remove(0);
+                    table.placeCard(card, i);    
+                }
+            }   
+            
         }
         table.hints(); // DELETE
 
@@ -227,16 +244,16 @@ public class Dealer implements Runnable {
             //env.logger.info("get into sleepUntilWokenOrTimeout");
             try {
                 if(reshuffleTime - System.currentTimeMillis() < env.config.turnTimeoutWarningMillis) {
-                    env.logger.info("dealer wakes up each 100 milisec");
+                  //  env.logger.info("dealer wakes up each 100 milisec");
                     keyDealer.wait(100);
                 } else {
                 //keyDealer.wait(reshuffleTime - System.currentTimeMillis());
-                    env.logger.info("dealer wakes up each 1000 milisec");
+                  //  env.logger.info("dealer wakes up each 1000 milisec");
                     keyDealer.wait(100);
                 }
             } catch (InterruptedException ignored) {}
         }
-        env.logger.info("Dealer is awake");
+        env.logger.info("MYLOG:Dealer is awake after a 100 milis break");
 
     }
 
@@ -246,20 +263,18 @@ public class Dealer implements Runnable {
     private void updateTimerDisplay(boolean reset) {
         // TODO implement
         if(reset) {
-            reshuffleTime = env.config.turnTimeoutMillis + System.currentTimeMillis();
+            reshuffleTime = env.config.turnTimeoutMillis + System.currentTimeMillis() + 900;
+        //    env.logger.info("reshuffleTime: " + (reshuffleTime - System.currentTimeMillis()));
             env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), false);
 
-            // need to change This:
-            // for(Player player : players) {
-            //     int tokenSize = player.tokens.size();
-            //     for(int i=0; i<tokenSize; i++) {
-            //         table.removeToken(player.id, player.tokens.poll());
-            //     }
-            // }
         }
+        // else {
+        //     env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), true);
+        // }
         else if(reshuffleTime - System.currentTimeMillis() < env.config.turnTimeoutWarningMillis) {
             env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), true);
-        } else {
+        } 
+        else {
             env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), false);
         }
         updateFreezeDisplay();
@@ -284,10 +299,11 @@ private void updateFreezeDisplay() {
     for(int i=0; i<players.length; i++) {
         if(!(players[i].freezeTime - System.currentTimeMillis() > 0 & players[i].freezeTime - System.currentTimeMillis() < 1000)) {
             env.ui.setFreeze(i, players[i].freezeTime - System.currentTimeMillis());
+        } else {
+            env.ui.setFreeze(i, 0);
         }
-        
     }
-}
+}   
 
 
     /**
@@ -295,7 +311,7 @@ private void updateFreezeDisplay() {
      */
     private void removeAllCardsFromTable() {
         synchronized(table) {
-            env.logger.info("get into removeAllCardsFromTable");
+            env.logger.info("MYLOG:dealer get into removeAllCardsFromTable");
             synchronized(keyDealer) {
                 playerSetQueue.clear();
             }
@@ -303,15 +319,19 @@ private void updateFreezeDisplay() {
         // TODO implement
             for(Player player : players) {
                 synchronized(player.keyPlayer) {
+                    player.keyPlayer.notifyAll();
                     int tokenSize = player.tokens.size();
                     for(int i=0; i<tokenSize; i++) {
                         table.removeToken(player.id, player.tokens.poll());
                     }
+                    player.pressedKeys.clear();
                 }
             }
             for(int i =0; i<table.slotToCard.length; i++) {
-                deck.add(table.slotToCard[i]);
-                table.removeCard(i);
+                if(table.slotToCard[i] != null) {
+                    deck.add(table.slotToCard[i]);
+                    table.removeCard(i);
+                }
             }
             Collections.shuffle(deck);   
         }
@@ -345,5 +365,29 @@ private void updateFreezeDisplay() {
         }
         env.ui.announceWinner(winnersArray);
 
+    }
+
+    public void removeTokensFromSet(Player playerClaimsSet, int[] cards) {
+        for(int i=0 ; i<3 ; i++ ) {
+            int slot = table.cardToSlot[cards[i]];
+            for (Player player : players) {
+                table.removeToken(player.id, slot);
+                if (player.id != playerClaimsSet.id) {  
+                    if (player.tokensContains(slot)) {
+                        player.tokensRemove(slot);
+                        synchronized(player.keyPlayer) {
+                            player.keyPlayer.notifyAll();
+                        }
+                        // if(playerSetQueue.contains(p)) {
+                        //     playerSetQueue.remove(p);
+                        // }
+                    }   
+                } else {
+                    table.removeToken(playerClaimsSet.id, slot);
+                }
+            }
+            table.removeCard(slot);
+        }
+        playerClaimsSet.tokens.clear();
     }
 }
