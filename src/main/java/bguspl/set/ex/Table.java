@@ -114,6 +114,7 @@ public class Table {
             int card = slotToCard[slot];
             slotToCard[slot] = null;
             cardToSlot[card] = null;
+            env.logger.info("Slot " + slot + " is now null");
 
             env.ui.removeCard(slot);
             // env.ui.removeTokens ??

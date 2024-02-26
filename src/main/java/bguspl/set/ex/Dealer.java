@@ -106,6 +106,7 @@ public class Dealer implements Runnable {
         terminate = true;
         for(int i = players.length-1; i>=0; i--) {
             players[i].terminate();
+            
         }   
         Thread.currentThread().interrupt();
     }
@@ -136,14 +137,14 @@ public class Dealer implements Runnable {
                         env.logger.info("MYLOG:dealer is awake and checking set of player " + playerClaimsSet.id);
                         // player claims set and check if the set is valid and remove the 3 cards
                         int[] cards = new int[3];
-                        if(playerClaimsSet.tokensSize() == 3) {
-                            for(int i=0; i<3; i++) {
-                                int slot;
-                                slot = playerClaimsSet.tokens.poll();
-                                env.logger.info("MYLOG: slot: " + slot + " of player " + playerClaimsSet.id);
-                                cards[i] = table.slotToCard[slot];
-                            }
+                       
+                        for(int i=0; i<3; i++) {
+                            int slot;
+                            slot = playerClaimsSet.tokens.poll();
+                            env.logger.info("MYLOG: slot: " + slot + " which has the card: " + table.slotToCard[slot]  + " of player " + playerClaimsSet.id);
+                            cards[i] = table.slotToCard[slot];
                         }
+                        
 
                         if(env.util.testSet(cards)) {
                             // this is a valid set
@@ -205,7 +206,8 @@ public class Dealer implements Runnable {
             Collections.shuffle(deck);
             int countNulls = 0;
             int cardsToPlace = 0;
-            for(int i =0; i<table.slotToCard.length; i++) {
+            boolean isCardPlaced = false;
+            for(int i =0; i<env.config.tableSize; i++) {
                 if(table.slotToCard[i] == null) {
                     countNulls++;
                 }
@@ -216,16 +218,18 @@ public class Dealer implements Runnable {
                 cardsToPlace = deck.size();
             }
 
-            for(int i =0; i<table.slotToCard.length; i++) {
+            for(int i =0; i<env.config.tableSize; i++) {
                 if(table.slotToCard[i] == null && cardsToPlace > 0) {
                     cardsToPlace--;
                     int card = deck.remove(0);
-                    table.placeCard(card, i);    
+                    table.placeCard(card, i); 
+                    isCardPlaced = true;   
                 }
             }   
-            
+            if(env.config.hints && isCardPlaced)
+                table.hints(); 
         }
-        table.hints(); // DELETE
+        
 
     }
 
@@ -261,47 +265,53 @@ public class Dealer implements Runnable {
      * Reset and/or update the countdown and the countdown display.
      */
     private void updateTimerDisplay(boolean reset) {
-        // TODO implement
-        if(reset) {
-            reshuffleTime = env.config.turnTimeoutMillis + System.currentTimeMillis() + 900;
-        //    env.logger.info("reshuffleTime: " + (reshuffleTime - System.currentTimeMillis()));
-            env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), false);
+              // TODO implement
+        if(env.config.turnTimeoutMillis > 0) {
+  
+            if(reset) {
+                reshuffleTime = env.config.turnTimeoutMillis + System.currentTimeMillis() + 900;
+            //    env.logger.info("reshuffleTime: " + (reshuffleTime - System.currentTimeMillis()));
+                env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), false);
 
-        }
-        // else {
-        //     env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), true);
-        // }
-        else if(reshuffleTime - System.currentTimeMillis() < env.config.turnTimeoutWarningMillis) {
-            env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), true);
-        } 
-        else {
-            env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), false);
-        }
-        updateFreezeDisplay();
-         
-            // if(players[i].freezeTime - System.currentTimeMillis()+1000 <= 0) {
-            //     synchronized(players[i].keyPlayer) {
-            //         players[i].keyPlayer.notify();
+            }
+            // else {
+            //     env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), true);
+            // }
+            else if(reshuffleTime - System.currentTimeMillis() < env.config.turnTimeoutWarningMillis) {
+                env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), true);
+            } 
+            else {
+                env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), false);
+            }
+            updateFreezeDisplay();
+            
+                // if(players[i].freezeTime - System.currentTimeMillis()+1000 <= 0) {
+                //     synchronized(players[i].keyPlayer) {
+                //         players[i].keyPlayer.notify();
+                //     }
+            //     } else {
+            //         try {
+            //             synchronized(players[i].keyPlayer) {
+            //                 players[i].keyPlayer.wait();
+            //             }
+            //         }
+            //         catch (InterruptedException e) {}
             //     }
-        //     } else {
-        //         try {
-        //             synchronized(players[i].keyPlayer) {
-        //                 players[i].keyPlayer.wait();
-        //             }
-        //         }
-        //         catch (InterruptedException e) {}
-        //     }
+        }
             
          
     }
 
 private void updateFreezeDisplay() {
     for(int i=0; i<players.length; i++) {
-        if(!(players[i].freezeTime - System.currentTimeMillis() > 0 & players[i].freezeTime - System.currentTimeMillis() < 1000)) {
-            env.ui.setFreeze(i, players[i].freezeTime - System.currentTimeMillis());
-        } else {
-            env.ui.setFreeze(i, 0);
+        if(players[i].freezeTime - System.currentTimeMillis() > 0) {
+            if(players[i].freezeTime - System.currentTimeMillis() > 1000) {
+                env.ui.setFreeze(i, players[i].freezeTime - System.currentTimeMillis());
+            } else {
+                env.ui.setFreeze(i, 0);
+            }
         }
+        
     }
 }   
 
@@ -327,7 +337,7 @@ private void updateFreezeDisplay() {
                     player.pressedKeys.clear();
                 }
             }
-            for(int i =0; i<table.slotToCard.length; i++) {
+            for(int i =0; i<env.config.tableSize; i++) {
                 if(table.slotToCard[i] != null) {
                     deck.add(table.slotToCard[i]);
                     table.removeCard(i);
@@ -370,6 +380,7 @@ private void updateFreezeDisplay() {
     public void removeTokensFromSet(Player playerClaimsSet, int[] cards) {
         for(int i=0 ; i<3 ; i++ ) {
             int slot = table.cardToSlot[cards[i]];
+            table.removeCard(slot);
             for (Player player : players) {
                 table.removeToken(player.id, slot);
                 if (player.id != playerClaimsSet.id) {  
@@ -386,7 +397,7 @@ private void updateFreezeDisplay() {
                     table.removeToken(playerClaimsSet.id, slot);
                 }
             }
-            table.removeCard(slot);
+            
         }
         playerClaimsSet.tokens.clear();
     }
