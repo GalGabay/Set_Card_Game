@@ -64,12 +64,10 @@ public class Dealer implements Runnable {
             name = "Player " + i;
             new ThreadLogger(players[i], name, env.logger).startWithLog();
         }
-        // what about "join" to the threads of the players?
         while (!shouldFinish()) {
             placeCardsOnTable();
             timerLoop();
             updateTimerDisplay(true);
-             // probably true
             removeAllCardsFromTable();
         }
         announceWinners();
@@ -83,19 +81,12 @@ public class Dealer implements Runnable {
     private void timerLoop() {
         reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis + 900;
         while (!terminate && System.currentTimeMillis() < reshuffleTime) {
-            //env.ui.setCountdown(reshuffleTime-System.currentTimeMillis(), false);
             sleepUntilWokenOrTimeout();
             updateTimerDisplay(false);
             removeCardsFromTable();
             placeCardsOnTable();
         }
         reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis + 900;
-        // for(Player player : players) {
-        //     synchronized(player.keyPlayer) {
-        //         player.keyPlayer.notifyAll();
-                
-        //     }
-        // }
     }
 
     /**
@@ -134,14 +125,11 @@ public class Dealer implements Runnable {
             if(!(playerClaimsSet == null)) { 
                 synchronized(playerClaimsSet.keyPlayer) {
                     if(playerClaimsSet.tokensSize() == 3) { 
-                        env.logger.info("MYLOG:dealer is awake and checking set of player " + playerClaimsSet.id);
                         // player claims set and check if the set is valid and remove the 3 cards
-                        int[] cards = new int[3];
-                       
+                        int[] cards = new int[3]; 
                         for(int i=0; i<3; i++) {
                             int slot;
                             slot = playerClaimsSet.tokens.poll();
-                            env.logger.info("MYLOG: slot: " + slot + " which has the card: " + table.slotToCard[slot]  + " of player " + playerClaimsSet.id);
                             cards[i] = table.slotToCard[slot];
                         }
                         
@@ -154,13 +142,7 @@ public class Dealer implements Runnable {
                                 playerClaimsSet.frozen = true;
                             }
                             removeTokensFromSet(playerClaimsSet, cards);
-                            // for(int i=0; i<3; i++) {
-                            //     int slot = table.cardToSlot[cards[i]];
-                            //     table.removeCard(slot);
-                            //     table.removeToken(playerClaimsSet.id, slot);
-                            // }
-                            //placeCardsOnTable(); // added this line
-                           // updateTimerDisplay(true);
+                            updateTimerDisplay(true);
                         } else {
                             // this is not a valid sets
                             playerClaimsSet.penalty();
@@ -175,17 +157,8 @@ public class Dealer implements Runnable {
                                     playerClaimsSet.tokens.put(table.cardToSlot[cards[1]]);
                                     playerClaimsSet.tokens.put(table.cardToSlot[cards[2]]);
                                 }
-                            } catch (InterruptedException e) {}
-            
-                                // playerClaimsSet.keyPressed(table.cardToSlot[cards[0]]);
-                                // playerClaimsSet.keyPressed(table.cardToSlot[cards[1]]);
-                                // playerClaimsSet.keyPressed(table.cardToSlot[cards[2]]);
-
-                        
-                            
-                        
+                            } catch (InterruptedException e) {}  
                     }
-               // }
                     synchronized(playerClaimsSet.keyPlayer) {
                         playerClaimsSet.keyPlayer.notifyAll();
                     }
@@ -238,26 +211,11 @@ public class Dealer implements Runnable {
      */
     private void sleepUntilWokenOrTimeout() {
         // TODO implement
-        // while(System.currentTimeMillis() < reshuffleTime) {
-        //     try {
-        //         // how to awake the thread because of the player's set
-        //         synchronized (this) { wait(); }
-        //     } catch (InterruptedException ignored) {}
-        // }
         synchronized(keyDealer) {
-            //env.logger.info("get into sleepUntilWokenOrTimeout");
             try {
-                if(reshuffleTime - System.currentTimeMillis() < env.config.turnTimeoutWarningMillis) {
-                  //  env.logger.info("dealer wakes up each 100 milisec");
-                    keyDealer.wait(100);
-                } else {
-                //keyDealer.wait(reshuffleTime - System.currentTimeMillis());
-                  //  env.logger.info("dealer wakes up each 1000 milisec");
-                    keyDealer.wait(100);
-                }
+                keyDealer.wait(100);
             } catch (InterruptedException ignored) {}
         }
-        env.logger.info("MYLOG:Dealer is awake after a 100 milis break");
 
     }
 
@@ -270,13 +228,9 @@ public class Dealer implements Runnable {
   
             if(reset) {
                 reshuffleTime = env.config.turnTimeoutMillis + System.currentTimeMillis() + 900;
-            //    env.logger.info("reshuffleTime: " + (reshuffleTime - System.currentTimeMillis()));
                 env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), false);
 
             }
-            // else {
-            //     env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), true);
-            // }
             else if(reshuffleTime - System.currentTimeMillis() < env.config.turnTimeoutWarningMillis) {
                 env.ui.setCountdown(reshuffleTime - System.currentTimeMillis(), true);
             } 
@@ -285,18 +239,6 @@ public class Dealer implements Runnable {
             }
             updateFreezeDisplay();
             
-                // if(players[i].freezeTime - System.currentTimeMillis()+1000 <= 0) {
-                //     synchronized(players[i].keyPlayer) {
-                //         players[i].keyPlayer.notify();
-                //     }
-            //     } else {
-            //         try {
-            //             synchronized(players[i].keyPlayer) {
-            //                 players[i].keyPlayer.wait();
-            //             }
-            //         }
-            //         catch (InterruptedException e) {}
-            //     }
         }
             
          
@@ -321,7 +263,6 @@ private void updateFreezeDisplay() {
      */
     private void removeAllCardsFromTable() {
         synchronized(table) {
-            env.logger.info("MYLOG:dealer get into removeAllCardsFromTable");
             synchronized(keyDealer) {
                 playerSetQueue.clear();
             }
@@ -353,7 +294,6 @@ private void updateFreezeDisplay() {
      */
     private void announceWinners() {
         // TODO implement
-        env.logger.info("get into announceWinners");
         LinkedBlockingQueue<Player> winners = new LinkedBlockingQueue<Player>();
         int winningScore = 0;
         int numOfWinners = 0;
@@ -389,9 +329,6 @@ private void updateFreezeDisplay() {
                         synchronized(player.keyPlayer) {
                             player.keyPlayer.notifyAll();
                         }
-                        // if(playerSetQueue.contains(p)) {
-                        //     playerSetQueue.remove(p);
-                        // }
                     }   
                 } else {
                     table.removeToken(playerClaimsSet.id, slot);

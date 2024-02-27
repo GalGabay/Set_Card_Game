@@ -12,13 +12,28 @@ with a short description of:
 
 1. Fully supporting all configuration fields and avoiding the use of magic numbers
 
-We are not entitled to this bonus.
+    1. Instead of using mumbers we used the config file fields by calling "env.config.***"
+    2. Dealer: - "PlaceCardsOnTable" 
+               - reshuffleTime in TimerLoop and updateTimerDisplay 
+               - removeAllCardsFromTable
+       Player: - createArtificialIntelligence
+               - point
+               - penalty
+    3. We changed the value of these fields in the config file, then we ran the program and saw the differences. 
 
 --------------------
 
 2. Terminating all threads (that you created) gracefully and in reverse order to the order they were created in.
 
-We are not entitled to this bonus.
+    1. we created the players threads in a loop running from 0 to players.length. 
+    When we terminated the threads we had a loop from players.length to 0(in reverse order to their creation)
+    In the player class, inside terminate() we terminated the AI thread(using intterupt) and waited it to 
+    terminate(using join) and after that we terminate(using intterupt) and waited 
+    the player thread to terminate(using join).
+    2. We terminated the player threads in method terminate() in class Dealer.
+    AI threads terminated in method terminate() of class Player.
+    3. We ran the program and checked in the "logs" file. 
+    We saw that the order of the threads creation and the threads termination were in reverse order.
 
 --------------------
 

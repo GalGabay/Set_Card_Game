@@ -117,7 +117,6 @@ public class Table {
             env.logger.info("Slot " + slot + " is now null");
 
             env.ui.removeCard(slot);
-            // env.ui.removeTokens ??
         }
     }
 

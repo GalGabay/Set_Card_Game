@@ -96,13 +96,12 @@ public class Player implements Runnable {
 
         while (!terminate) {
             // TODO implement main player loop
+
             synchronized(keyPlayer) {
                 while(frozen) {
                     freeze(freezeTime-System.currentTimeMillis());
-                    env.logger.info("MYLOG:player " + id + "is out of freeze");
                 }
             }
-
 
             while(!pressedKeys.isEmpty()) {
                 int pressedKey = pressedKeys.poll();
@@ -113,7 +112,6 @@ public class Player implements Runnable {
                             table.removeToken(id, pressedKey);
                         }
                     } else {
-                        env.logger.info("MYLOG: slot: " + pressedKey + " entered to tokens list of player: " + this.id);
                         boolean added = tokensAdd(pressedKey);
                         if (added){
                         synchronized(table) {
@@ -130,16 +128,10 @@ public class Player implements Runnable {
                             
                             synchronized (keyPlayer) {
                                 try {
-                                    env.logger.info("MYLOG:player + " + id + " is waiting");
                                     keyPlayer.wait(); 
-                                    env.logger.info("MYLOG:player + " + id + " is awake");
                                 }  catch (InterruptedException e) {}
                                 
                             }
-                                // try {
-                                //     Thread.sleep(3000);
-                                // } catch (InterruptedException e) {
-                                //   
                         }
                     }
 
@@ -166,10 +158,6 @@ public class Player implements Runnable {
                 // TODO implement player key press simulator
                 int rand = (int)(Math.random()*env.config.tableSize);
                 keyPressed(rand);
-                // try {
-                //     synchronized (this) { wait(800); } // how long should the AI wait between key presses?
-                // } catch (InterruptedException ignored) {}
-                //tokens.clear();
             }
             env.logger.info("thread " + Thread.currentThread().getName() + " terminated.");
         }, "computer-" + id);
@@ -191,10 +179,6 @@ public class Player implements Runnable {
         } catch (InterruptedException ignored) {
         }
 
-        // interrupt??
-
-        // what should we do??
-        
         // TODO implement
     }
 
@@ -205,43 +189,12 @@ public class Player implements Runnable {
      */ 
     public void keyPressed(int slot) {
         // TODO implement
-        synchronized(keyPlayer) {
-            if(!frozen) {
-                //synchronized(table) {
-                if(table.slotToCard[slot] != null && pressedKeys.size() < 3) {
-                    pressedKeys.offer(slot);
-                    env.logger.info("MYLOG:slot: " + slot + " entered to pressedKeys list of player " + id);
-                }
+        if(!frozen) {
+            if(table.slotToCard[slot] != null && pressedKeys.size() < 3) {
+                pressedKeys.offer(slot);
             }
-        //}
-    }
-        
-            //notifyAll();  // ??
-            // if(tokens.size() == 3) {
-            //     notifyAll(); // notify the dealer that the player has 3 tokens
-            //     tokens.clear();
-                //wait(); // ???
-                // remove token in the dealer class
-            //}
         }
-
-
-        // public int pressedKeysSize() {
-        //     synchronized(keyPlayer) {
-        //         return pressedKeys.size();
-        //     }
-        // }
-
-        // public void pressedKeysAdd(int slot) {
-        //     synchronized(keyPlayer) {
-        //         pressedKeys.offer(slot);
-        //     }
-        // }
-
-
-        
-        
-        
+    }
 
     /**
      * Award a point to a player and perform other related actions.
@@ -253,16 +206,6 @@ public class Player implements Runnable {
         // TODO implement
         
         freezeTime =   900+System.currentTimeMillis() + env.config.pointFreezeMillis;
-        // while(System.currentTimeMillis() < freezeTime - 1000) {
-        //     env.ui.setFreeze(id, freezeTime - System.currentTimeMillis());
-        // }
-        // env.ui.setFreeze(id, 0);
-        // synchronized(keyPlayer) {
-        //     try {
-        //         keyPlayer.wait(freezeTime);
-        //     } catch (InterruptedException e) {
-        //     }
-        // }
 
         int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
@@ -272,18 +215,7 @@ public class Player implements Runnable {
      * Penalize a player and perform other related actions.
      */
     public void penalty() {
-        //env.ui.setFreeze(id, 3000 );
         freezeTime = 900 + System.currentTimeMillis() + env.config.penaltyFreezeMillis;
-        // synchronized(keyPlayer) {
-        //     try {
-        //         keyPlayer.wait(freezeTime);
-        //     } catch (InterruptedException e) {
-        //     }
-        // }
-        // while(System.currentTimeMillis() < freezeTime - 1000) {
-        //     env.ui.setFreeze(id, freezeTime - System.currentTimeMillis());
-        // }
-        // env.ui.setFreeze(id, 0);
         // TODO implement
     }
 
@@ -292,20 +224,15 @@ public class Player implements Runnable {
     }
 
     public void freeze(long freezeTime) {
-        env.logger.info("MYLOG:player " + id + "entered freeze");
-        env.logger.info( "MYLOG:freezeTime of " + id + "is: " + (freezeTime-900));
-        // synchronized(dealer.keyDealer) {
-        //     dealer.keyDealer.notify();
-        // }
         try {
             if(freezeTime > 900)
-                Thread.sleep(freezeTime-900); // Sleep for freezeTime milliseconds
+                Thread.sleep(freezeTime-900); 
         } catch (InterruptedException e) {
         }
         
         synchronized (keyPlayer) {
             frozen = false;
-            keyPlayer.notify(); // Notify the player thread to resume
+            keyPlayer.notify(); 
         }
     }
 
@@ -317,7 +244,6 @@ public class Player implements Runnable {
     public void tokensRemove(int pressedKey) {
         synchronized(keyPlayer) {
             tokens.remove(pressedKey);
-            env.logger.info("MYLOG:slot: " + pressedKey + " removed from tokens list of player: " + this.id);
         }
     }
     public boolean tokensAdd(int pressedKey) {
